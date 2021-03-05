@@ -1,0 +1,36 @@
+[Unit]
+Description=Prometheus exporter for data from FreeRADIUS
+Documentation=https://github.com/semaphor-dk/freeradius_exporter
+After=freeradius.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=10
+ExecStart=/usr/local/bin/freeradius_exporter.py
+ExecStop=/bin/kill $MAINPID
+
+# sandboxing:
+DynamicUser=yes
+NoNewPrivileges=yes
+RestrictNamespaces=uts ipc pid user cgroup
+# CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+LockPersonality=yes
+PrivateMounts=true
+PrivateDevices=yes
+PrivateUsers=true
+ProtectControlGroups=true
+ProtectHostname=yes
+
+DevicePolicy=closed
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=Yes
+RestrictRealtime=yes
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
