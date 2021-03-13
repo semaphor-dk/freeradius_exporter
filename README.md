@@ -13,6 +13,8 @@ apt install python3-pyrad python3-prometheus-client
 You can override configuration settings:
 ```bash
 systemctl edit freeradius_exporter
+```
+```systemd
 [Service]
 # the "secret" configured for the "status" module in FreeRADIUS:
 Environment=FREERADIUS_EXPORTER_SECRET=68656c6c6f
@@ -37,7 +39,53 @@ systemctl start freeradius_exporter
 curl http://127.0.0.1:9812/
 ```
 
+### Example PromQL queries
+
+Each request for statistics will increase the counters for one of the clients (the exporter itself), since the statistics module counts as a client and polls using the `Access-Request` RADIUS packet type.
+To get accurate numbers you will have to filter this out.
+It seems to (always?) have the highest client number (`client_no` label), but the specific number may be different for each instance depending on the number of other clients defined in `clients.conf`. Note that there can be multiple clients configured using the same IP.
+
+Another potential source of noise is if you have health monitoring clients, or if some of the FreeRADIUS nodes proxy requests to each other.
+
+In the examples below we use a negative regex match ( `!~` ) against the `client_ip` label to exclude localhost (starting with `127.`) and 10 health monitor clients with IP addressses `10.5.6.7x`.
+
+Total number of answers sent in the last hour:
+```
+sum(increase(freeradius_auth_responses_total{client_ip!~"^(127\\..*|10\\.5\\.6\\.7.)$"}[1h]))
+```
+
+`Access-Reject` sent in the last hour:
+```
+sum(increase(freeradius_access_rejects_total{client_ip!~"^(127\\..*|10\\.5\\.6\\.7.)$"}[1h]))
+```
+
+`Access-Challenge` sent in the last hour (e.g. multi-factor authentication):
+```
+sum(increase(freeradius_access_challenges_total{client_ip!~"^(127\\..*|10\\.5\\.6\\.7.)$"}[1h]))
+```
+
+`Access-Accept` sent in the last hour:
+```
+sum(increase(freeradius_access_accepts_total{client_ip!~"^(127\\..*|10\\.5\\.6\\.7.)$"}[1h]))
+```
+
+Duplicate requests (sent twice to the same FreeRADIUS node):
+```
+sum(increase(freeradius_auth_duplicate_requests_total{client_ip!~"^(127\\..*|10\\.5\\.6\\.7.)$"}[1h]))
+
+# Duplicate requests are dropped, so should be included in:
+sum(increase(freeradius_auth_dropped_requests_total{client_ip!~"^(127\\..*|10\\.5\\.6\\.7.)$"}[1h]))
+```
+
+To graph by individual nodes you can use:
+```
+sum by (instance) (increase(freeradius_auth_responses_total{client_ip!~"^(127\\.*|10\\.5\\.6\\.7.)$"}[3h]))
+```
+
 ### Example output
+
+Newlines have been inserted in the output to increase readability.
+
 ```
 # HELP python_gc_objects_collected_total Objects collected during gc
 # TYPE python_gc_objects_collected_total counter
@@ -75,15 +123,22 @@ process_open_fds 7.0
 # HELP process_max_fds Maximum number of open file descriptors.
 # TYPE process_max_fds gauge
 process_max_fds 1024.0
+
+
+
+
 # HELP freeradius_statistics_server Whether or not FreeRADIUS is responding to stats requests
 # TYPE freeradius_statistics_server gauge
 freeradius_statistics_server{freeradius_statistics_server="up"} 1.0
 freeradius_statistics_server{freeradius_statistics_server="down"} 0.0
+
 # HELP freeradius_scrape_errors_total Number of failed stat requests to FreeRADIUS
 # TYPE freeradius_scrape_errors_total counter
 freeradius_scrape_errors_total 0.0
+
 # TYPE freeradius_scrape_errors_created gauge
 freeradius_scrape_errors_created 1.6149642206012497e+09
+
 # HELP freeradius_stats_collection Calls to the function that gathers statistics from FreeRADIUS
 # TYPE freeradius_stats_collection summary
 freeradius_stats_collection_count 13.0
@@ -100,6 +155,7 @@ freeradius_stats_start_seconds 1.614955383e+09
 # HELP freeradius_stats_hup_seconds FreeRADIUS-Stats-HUP-Time: Timestamp of last HUP signal (config reload), seconds since UNIX epoch
 # TYPE freeradius_stats_hup_seconds gauge
 freeradius_stats_hup_seconds 1.614955383e+09
+
 # HELP freeradius_queue_len_internal Attribute: FreeRADIUS-Queue-Len-Internal
 # TYPE freeradius_queue_len_internal gauge
 freeradius_queue_len_internal{client_ip="127.0.0.1",client_no="0"} 0.0
@@ -121,9 +177,11 @@ freeradius_queue_pps_in{client_ip="127.0.0.1",client_no="0"} 0.0
 # HELP freeradius_queue_pps_out Attribute: FreeRADIUS-Queue-PPS-Out
 # TYPE freeradius_queue_pps_out gauge
 freeradius_queue_pps_out{client_ip="127.0.0.1",client_no="0"} 0.0
+
 # HELP freeradius_stats_client_number FreeRADIUS-Stats-Client-Number: The client's index into clients.conf (starting from client_no=0)
 # TYPE freeradius_stats_client_number gauge
 freeradius_stats_client_number{client_ip="127.0.0.1",client_no="0"} 0.0
+
 # HELP freeradius_access_requests_total Attribute: FreeRADIUS-Total-Access-Requests
 # TYPE freeradius_access_requests_total counter
 freeradius_access_requests_total{client_ip="127.0.0.1",client_no="0"} 7.0
@@ -154,6 +212,8 @@ freeradius_auth_dropped_requests_total{client_ip="127.0.0.1",client_no="0"} 0.0
 # HELP freeradius_auth_unknown_types_total Attribute: FreeRADIUS-Total-Auth-Unknown-Types
 # TYPE freeradius_auth_unknown_types_total counter
 freeradius_auth_unknown_types_total{client_ip="127.0.0.1",client_no="0"} 0.0
+
+
 # HELP freeradius_accounting_requests_total Attribute: FreeRADIUS-Total-Accounting-Requests
 # TYPE freeradius_accounting_requests_total counter
 freeradius_accounting_requests_total{client_ip="127.0.0.1",client_no="0"} 0.0
@@ -185,6 +245,7 @@ freeradius_stats_start_seconds 1.614955383e+09
 # HELP freeradius_stats_hup_seconds FreeRADIUS-Stats-HUP-Time: Timestamp of last HUP signal (config reload), seconds since UNIX epoch
 # TYPE freeradius_stats_hup_seconds gauge
 freeradius_stats_hup_seconds 1.614955383e+09
+
 # HELP freeradius_queue_len_internal Attribute: FreeRADIUS-Queue-Len-Internal
 # TYPE freeradius_queue_len_internal gauge
 freeradius_queue_len_internal{client_ip="10.1.2.3",client_no="1"} 0.0
@@ -206,6 +267,7 @@ freeradius_queue_pps_in{client_ip="10.1.2.3",client_no="1"} 0.0
 # HELP freeradius_queue_pps_out Attribute: FreeRADIUS-Queue-PPS-Out
 # TYPE freeradius_queue_pps_out gauge
 freeradius_queue_pps_out{client_ip="10.1.2.3",client_no="1"} 0.0
+
 # HELP freeradius_stats_client_number FreeRADIUS-Stats-Client-Number: The client's index into clients.conf (starting from client_no=0)
 # TYPE freeradius_stats_client_number gauge
 freeradius_stats_client_number{client_ip="10.1.2.3",client_no="1"} 1.0
@@ -239,6 +301,7 @@ freeradius_auth_dropped_requests_total{client_ip="10.1.2.3",client_no="1"} 0.0
 # HELP freeradius_auth_unknown_types_total Attribute: FreeRADIUS-Total-Auth-Unknown-Types
 # TYPE freeradius_auth_unknown_types_total counter
 freeradius_auth_unknown_types_total{client_ip="10.1.2.3",client_no="1"} 0.0
+
 # HELP freeradius_accounting_requests_total Attribute: FreeRADIUS-Total-Accounting-Requests
 # TYPE freeradius_accounting_requests_total counter
 freeradius_accounting_requests_total{client_ip="10.1.2.3",client_no="1"} 0.0
@@ -270,6 +333,7 @@ freeradius_stats_start_seconds 1.614955383e+09
 # HELP freeradius_stats_hup_seconds FreeRADIUS-Stats-HUP-Time: Timestamp of last HUP signal (config reload), seconds since UNIX epoch
 # TYPE freeradius_stats_hup_seconds gauge
 freeradius_stats_hup_seconds 1.614955383e+09
+
 # HELP freeradius_queue_len_internal Attribute: FreeRADIUS-Queue-Len-Internal
 # TYPE freeradius_queue_len_internal gauge
 freeradius_queue_len_internal{client_ip="127.0.0.1",client_no="2"} 0.0
@@ -291,6 +355,7 @@ freeradius_queue_pps_in{client_ip="127.0.0.1",client_no="2"} 0.0
 # HELP freeradius_queue_pps_out Attribute: FreeRADIUS-Queue-PPS-Out
 # TYPE freeradius_queue_pps_out gauge
 freeradius_queue_pps_out{client_ip="127.0.0.1",client_no="2"} 0.0
+
 # HELP freeradius_stats_client_number FreeRADIUS-Stats-Client-Number: The client's index into clients.conf (starting from client_no=0)
 # TYPE freeradius_stats_client_number gauge
 freeradius_stats_client_number{client_ip="127.0.0.1",client_no="2"} 2.0
@@ -324,6 +389,7 @@ freeradius_auth_dropped_requests_total{client_ip="127.0.0.1",client_no="2"} 0.0
 # HELP freeradius_auth_unknown_types_total Attribute: FreeRADIUS-Total-Auth-Unknown-Types
 # TYPE freeradius_auth_unknown_types_total counter
 freeradius_auth_unknown_types_total{client_ip="127.0.0.1",client_no="2"} 0.0
+
 # HELP freeradius_accounting_requests_total Attribute: FreeRADIUS-Total-Accounting-Requests
 # TYPE freeradius_accounting_requests_total counter
 freeradius_accounting_requests_total{client_ip="127.0.0.1",client_no="2"} 0.0
