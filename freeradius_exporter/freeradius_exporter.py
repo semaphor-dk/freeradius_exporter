@@ -34,7 +34,11 @@ def msg_auth(req):
     h.update(header[0:4])
     h.update(req.authenticator)
     h.update(attr)
-    req['Message-Authenticator'] = h.digest()
+    # why not pass it as binary? because inside pyrad (see tools/EncodeOctets) it will fail to hex decode if it starts with 0x;
+    # which means we will fail to scrape with a probability of  1/(256**2)
+    # See https://github.com/pyradius/pyrad/issues/152
+    # The fix is to try to always hit that branch, with hex:
+    req['Message-Authenticator'] = ('0x' + h.hexdigest()).encode()
 
 TIMEOUT_ENUM = Enum('freeradius_statistics_server', 'Whether or not FreeRADIUS is responding to stats requests', states=['up', 'down'])
 ERROR_COUNTER = Counter('freeradius_scrape_errors_total', 'Number of failed stat requests to FreeRADIUS')

@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='freeradius_exporter',
-    version='1.0',
+    version='1.1',
     requires=['pyrad', 'prometheus_client'],
     author='Semaphor',
     author_email='info@semaphor.dk',
