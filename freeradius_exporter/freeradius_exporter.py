@@ -7,8 +7,9 @@ from pyrad.client import Client, Timeout
 from pyrad.dictionary import Dictionary
 import pyrad.packet
 from os import environ
+import binascii
 
-secret = bytes.fromhex(environ.get('FREERADIUS_EXPORTER_SECRET', b'adminsecret'.hex()))
+secret = bytes.fromhex(environ.get('FREERADIUS_EXPORTER_SECRET', binascii.hexlify(b'adminsecret')))
 
 srv = Client(server="127.0.0.1", authport=18121, secret=secret,
              dict=Dictionary('/usr/local/share/freeradius_exporter/dictionary.freeradius.pyrad'))
@@ -78,7 +79,7 @@ def stats_for_client(client_number):
 
     for key_raw in reply.keys():
         key = key_raw.lower().replace('-', '_').replace('_time', '_seconds')
-        explanation = METRIC_EXPLANATIONS.get(key_raw, f'Attribute: {key_raw}')
+        explanation = METRIC_EXPLANATIONS.get(key_raw, 'Attribute: {}'.format(key_raw))
         if 'total' in key:
             key = key.replace('freeradius_total_', 'freeradius_')
             mf = CounterMetricFamily(key, explanation, labels=['client_ip', 'client_no'])
