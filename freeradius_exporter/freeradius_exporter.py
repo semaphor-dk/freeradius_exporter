@@ -9,7 +9,7 @@ import pyrad.packet
 from os import environ
 import binascii
 
-secret = bytes.fromhex(environ.get('FREERADIUS_EXPORTER_SECRET', binascii.hexlify(b'adminsecret')))
+secret = bytes.fromhex(environ.get('FREERADIUS_EXPORTER_SECRET', binascii.hexlify(b'adminsecret').decode("utf-8")))
 
 srv = Client(server="127.0.0.1", authport=18121, secret=secret,
              dict=Dictionary('/usr/local/share/freeradius_exporter/dictionary.freeradius.pyrad'))
