@@ -82,6 +82,16 @@ To graph by individual nodes you can use:
 sum by (instance) (increase(freeradius_auth_responses_total{client_ip!~"^(127\\.*|10\\.5\\.6\\.7.)$"}[3h]))
 ```
 
+### Quick status from cli
+
+The AWK script below sums up the statistics since last `freeradius` restart, filtering out statistics from `127.0.0.1` and the `10.5.6.7x` IPs:
+```
+curl -s http://127.0.0.1:9812 | fgrep -v '#' \
+  | fgrep -v 127.0.0.1 \
+  | grep -v 10\\.5\\.6\\.7. \
+  | awk '!/ 0\.0/{x="print $1 $2"}   /access_requests_total/{t+=$2}   /access_accepts_total/{a+=$2}   /access_rejects_total/{r+=$2}   END{print "total\t"t"\taccept:"a"\treject\t"r"\tsuccessrate\t"a/(a+r)}'
+```
+
 ### Example output
 
 Newlines have been inserted in the output to increase readability.
